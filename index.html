@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum vs Cryptography</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --bg: #06080c;
+    --bg2: #0c1018;
+    --cyan: #00f0ff;
+    --magenta: #ff2d6b;
+    --green: #39ff14;
+    --amber: #ffb300;
+    --text: #c8d6e5;
+    --dim: #3a4a5c;
+    --glow-cyan: 0 0 30px rgba(0,240,255,.35);
+    --glow-magenta: 0 0 30px rgba(255,45,107,.35);
+    --glow-green: 0 0 30px rgba(57,255,20,.35);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y proximity;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.06) 2px,
+      rgba(0,0,0,.06) 4px
+    );
+  }
+
+  /* ── Noise texture ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    opacity: .035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 256px;
+  }
+
+  /* ── Sections ── */
+  section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 40px;
+    position: relative;
+    scroll-snap-align: start;
+  }
+
+  /* ── Typography ── */
+  h1, h2, h3 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    letter-spacing: -.02em;
+  }
+
+  .hero-title {
+    font-size: clamp(3rem, 8vw, 7.5rem);
+    line-height: 1;
+    text-align: center;
+    position: relative;
+  }
+
+  .hero-title .line1 { color: var(--cyan); text-shadow: var(--glow-cyan); }
+  .hero-title .line2 { color: var(--text); opacity: .5; font-style: italic; font-size: .45em; display: block; margin-top: .3em; }
+
+  h2 {
+    font-size: clamp(2rem, 4.5vw, 4rem);
+    margin-bottom: 1.5rem;
+    line-height: 1.15;
+  }
+
+  .label {
+    font-size: .7rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: .8rem;
+  }
+
+  p, li {
+    max-width: 620px;
+    font-size: clamp(.85rem, 1.2vw, 1rem);
+  }
+
+  .accent-cyan { color: var(--cyan); }
+  .accent-mag { color: var(--magenta); }
+  .accent-green { color: var(--green); }
+  .accent-amber { color: var(--amber); }
+
+  /* ── Fade-in on scroll ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity .8s ease, transform .8s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal.d1 { transition-delay: .1s; }
+  .reveal.d2 { transition-delay: .25s; }
+  .reveal.d3 { transition-delay: .4s; }
+  .reveal.d4 { transition-delay: .55s; }
+
+  /* ── Hero ── */
+  #hero {
+    position: relative;
+    overflow: hidden;
+  }
+  #hero canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: .3;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+  }
+  .scroll-cue {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--dim);
+    font-size: .7rem;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    animation: bobCue 2s ease-in-out infinite;
+  }
+  .scroll-cue span {
+    display: block;
+    width: 1px;
+    height: 30px;
+    background: linear-gradient(to bottom, var(--dim), transparent);
+  }
+  @keyframes bobCue { 0%,100%{ transform: translateX(-50%) translateY(0); } 50%{ transform: translateX(-50%) translateY(8px); } }
+
+  /* ── Split columns ── */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    max-width: 1200px;
+    width: 100%;
+    align-items: center;
+  }
+  @media (max-width: 800px) {
+    .split { grid-template-columns: 1fr; gap: 40px; }
+  }
+
+  /* ── Elliptic Curve canvas ── */
+  .viz-box {
+    background: var(--bg2);
+    border: 1px solid rgba(0,240,255,.12);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .viz-box canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+  .viz-box .caption {
+    text-align: center;
+    font-size: .72rem;
+    color: var(--dim);
+    margin-top: 12px;
+    letter-spacing: .06em;
+  }
+
+  /* ── Hash waterfall ── */
+  #hashWaterfall {
+    width: 100%;
+    max-width: 540px;
+    height: 320px;
+    border-radius: 8px;
+  }
+
+  /* ── Comparison cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    max-width: 1000px;
+    width: 100%;
+  }
+  @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg2);
+    border-radius: 14px;
+    padding: 40px 32px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.05);
+    transition: border-color .4s, box-shadow .4s;
+  }
+  .card.broken {
+    border-color: rgba(255,45,107,.25);
+  }
+  .card.broken:hover {
+    border-color: rgba(255,45,107,.5);
+    box-shadow: var(--glow-magenta);
+  }
+  .card.safe {
+    border-color: rgba(57,255,20,.2);
+  }
+  .card.safe:hover {
+    border-color: rgba(57,255,20,.45);
+    box-shadow: var(--glow-green);
+  }
+  .card h3 {
+    font-size: 1.6rem;
+    margin-bottom: .8rem;
+  }
+  .card .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .65rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-bottom: 1.2rem;
+  }
+  .card.broken .tag {
+    background: rgba(255,45,107,.12);
+    color: var(--magenta);
+    border: 1px solid rgba(255,45,107,.25);
+  }
+  .card.safe .tag {
+    background: rgba(57,255,20,.1);
+    color: var(--green);
+    border: 1px solid rgba(57,255,20,.2);
+  }
+  .card ul { list-style: none; padding: 0; }
+  .card li {
+    padding: .45em 0;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    font-size: .85rem;
+  }
+  .card li:last-child { border-bottom: none; }
+  .card li::before {
+    content: '>';
+    margin-right: .6em;
+    opacity: .3;
+  }
+
+  /* ── Timeline / Shor visual ── */
+  .shor-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 480px;
+  }
+  .shor-step {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: var(--bg2);
+    border-radius: 10px;
+    border-left: 3px solid var(--magenta);
+    font-size: .82rem;
+    opacity: 0;
+    transform: translateX(-30px);
+    transition: all .5s ease;
+  }
+  .shor-step.visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .shor-step .num {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem;
+    color: var(--magenta);
+    flex-shrink: 0;
+    width: 30px;
+    text-align: center;
+  }
+
+  /* ── Grover visual ── */
+  .grover-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+    max-width: 360px;
+  }
+  .grover-cell {
+    aspect-ratio: 1;
+    background: rgba(57,255,20,.06);
+    border: 1px solid rgba(57,255,20,.12);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .55rem;
+    color: var(--dim);
+    transition: all .3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .grover-cell.searched {
+    background: rgba(57,255,20,.08);
+    border-color: rgba(57,255,20,.2);
+    color: var(--green);
+  }
+  .grover-cell.found {
+    background: rgba(57,255,20,.25);
+    border-color: var(--green);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(57,255,20,.3);
+    animation: pulse .6s ease;
+  }
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── Big number comparison ── */
+  .number-compare {
+    display: flex;
+    gap: 40px;
+    align-items: flex-end;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+  .num-block {
+    text-align: center;
+  }
+  .num-block .big {
+    font-family: 'Instrument Serif', serif;
+    line-height: 1;
+  }
+  .num-block .sub {
+    font-size: .7rem;
+    color: var(--dim);
+    margin-top: .4rem;
+  }
+
+  /* bar chart */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 30px;
+    justify-content: center;
+    margin-top: 2rem;
+    height: 260px;
+  }
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .bar {
+    width: 80px;
+    border-radius: 6px 6px 0 0;
+    position: relative;
+    transition: height 1.5s cubic-bezier(.22,1,.36,1);
+    height: 0;
+  }
+  .bar.classical {
+    background: linear-gradient(to top, rgba(0,240,255,.5), rgba(0,240,255,.15));
+    border: 1px solid rgba(0,240,255,.3);
+    border-bottom: none;
+  }
+  .bar.quantum-ecc {
+    background: linear-gradient(to top, rgba(255,45,107,.6), rgba(255,45,107,.15));
+    border: 1px solid rgba(255,45,107,.3);
+    border-bottom: none;
+  }
+  .bar.quantum-hash {
+    background: linear-gradient(to top, rgba(57,255,20,.5), rgba(57,255,20,.15));
+    border: 1px solid rgba(57,255,20,.3);
+    border-bottom: none;
+  }
+  .bar .bar-label {
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: .7rem;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .bar-col .bar-title {
+    font-size: .68rem;
+    color: var(--dim);
+    text-align: center;
+    max-width: 90px;
+  }
+
+  /* ── Final section ── */
+  .takeaway {
+    max-width: 700px;
+    text-align: center;
+  }
+  .takeaway h2 {
+    background: linear-gradient(135deg, var(--cyan), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .takeaway p {
+    margin: 0 auto;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--dim), transparent);
+    margin: 2.5rem auto;
+  }
+
+  /* ── Nav dots ── */
+  .nav-dots {
+    position: fixed;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 100;
+  }
+  .nav-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--dim);
+    background: transparent;
+    cursor: pointer;
+    transition: all .3s;
+    position: relative;
+  }
+  .nav-dot.active {
+    background: var(--cyan);
+    border-color: var(--cyan);
+    box-shadow: 0 0 8px rgba(0,240,255,.4);
+  }
+  .nav-dot .tooltip {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: .6rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--dim);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+  }
+  .nav-dot:hover .tooltip { opacity: 1; }
+
+  @media (max-width: 600px) {
+    section { padding: 60px 24px; }
+    .nav-dots { display: none; }
+    .bar-chart { gap: 16px; height: 200px; }
+    .bar { width: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Navigation dots ── -->
+<nav class="nav-dots" id="navDots"></nav>
+
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<section id="hero" data-nav="Intro">
+  <canvas id="bgCanvas"></canvas>
+  <div class="hero-content">
+    <div class="label reveal">Cryptography in the quantum age</div>
+    <h1 class="hero-title reveal d1">
+      <span class="line1">Quantum vs. Crypto</span>
+      <span class="line2">Why some locks shatter & others hold</span>
+    </h1>
+    <p class="reveal d2" style="margin-top:2rem; text-align:center; max-width:540px; color:var(--dim);">
+      Quantum computers threaten the math behind your encrypted messages.
+      But not all cryptography is equally vulnerable. Scroll to find out why.
+    </p>
+  </div>
+  <div class="scroll-cue">scroll<span></span></div>
+</section>
+
+<!-- ══════════════════════ ECC EXPLAINED ══════════════════════ -->
+<section id="ecc" data-nav="ECC">
+  <div class="split">
+    <div>
+      <div class="label reveal">Elliptic Curve Cryptography</div>
+      <h2 class="reveal d1">A beautiful <span class="accent-cyan">structure</span> to exploit</h2>
+      <p class="reveal d2">
+        ECC relies on a deceptively simple idea: take a point on an elliptic curve and "multiply" it by a huge secret number.
+        Going forward is easy. Reversing it &mdash; the <em>discrete logarithm problem</em> &mdash; is astronomically hard for classical computers.
+      </p>
+      <p class="reveal d3" style="margin-top:1rem;">
+        But "hard" is not "impossible." The security depends entirely on the <span class="accent-cyan">algebraic structure</span> of the curve &mdash; a structure that quantum algorithms can detect and dismantle.
+      </p>
+    </div>
+    <div class="viz-box reveal d2">
+      <canvas id="eccCanvas" width="500" height="500"></canvas>
+      <div class="caption">Elliptic curve point addition &mdash; the trapdoor function behind ECC</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ SHOR'S ATTACK ══════════════════════ -->
+<section id="shor" data-nav="Shor's Algorithm">
+  <div class="split">
+    <div>
+      <div class="label reveal">The quantum attack</div>
+      <h2 class="reveal d1">Shor's algorithm <span class="accent-mag">shatters</span> the curve</h2>
+      <p class="reveal d2">
+        Peter Shor's 1994 algorithm uses quantum superposition to find <em>hidden periods</em> in mathematical functions &mdash;
+        the same periodic structure that makes ECC work.
+      </p>
+      <p class="reveal d3" style="margin-top:1rem;">
+        A quantum computer can solve the elliptic curve discrete logarithm in <span class="accent-mag">polynomial time</span>,
+        reducing a problem that would take classical computers billions of years to mere hours.
+      </p>
+    </div>
+    <div class="reveal d2">
+      <div class="shor-visual" id="shorSteps">
+        <div class="shor-step" data-delay="0">
+          <span class="num">1</span>
+          <span>Place all possible answers in <strong>superposition</strong> simultaneously</span>
+        </div>
+        <div class="shor-step" data-delay="150">
+          <span class="num">2</span>
+          <span>Apply modular exponentiation to entangle input & output registers</span>
+        </div>
+        <div class="shor-step" data-delay="300">
+          <span class="num">3</span>
+          <span>Quantum Fourier Transform reveals the <strong>hidden period</strong></span>
+        </div>
+        <div class="shor-step" data-delay="450">
+          <span class="num">4</span>
+          <span>Period &rarr; secret key. The curve's structure is <span class="accent-mag">fully exposed</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ HASH EXPLAINED ══════════════════════ -->
+<section id="hash" data-nav="Hash Functions">
+  <div class="split">
+    <div class="viz-box reveal d1" style="order:0;">
+      <canvas id="hashWaterfall" width="540" height="320"></canvas>
+      <div class="caption">Input bits avalanche through irreversible compression &mdash; no structure survives</div>
+    </div>
+    <div style="order:1;">
+      <div class="label reveal">Cryptographic Hash Functions</div>
+      <h2 class="reveal d1">Designed to be <span class="accent-green">structureless</span></h2>
+      <p class="reveal d2">
+        Hash functions like SHA-256 are deliberately engineered to <em>destroy</em> all mathematical structure.
+        Every bit of input causes an unpredictable avalanche through the entire output.
+      </p>
+      <p class="reveal d3" style="margin-top:1rem;">
+        There is no hidden period. No algebraic group. No exploitable pattern.
+        The output is designed to be indistinguishable from random noise.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ GROVER ══════════════════════ -->
+<section id="grover" data-nav="Grover's Algorithm">
+  <div class="split">
+    <div>
+      <div class="label reveal">The best quantum can do</div>
+      <h2 class="reveal d1">Grover's algorithm: a <span class="accent-green">modest</span> speedup</h2>
+      <p class="reveal d2">
+        Without structure to exploit, the best quantum attack on hashes is Grover's algorithm &mdash;
+        an unstructured search that amplifies the probability of finding the right answer.
+      </p>
+      <p class="reveal d3" style="margin-top:1rem;">
+        Grover provides only a <span class="accent-green">quadratic</span> speedup: searching 2<sup>256</sup> possibilities
+        becomes 2<sup>128</sup>. That's still an incomprehensibly large number &mdash; far beyond any foreseeable quantum computer.
+      </p>
+    </div>
+    <div class="reveal d2" style="display:flex; flex-direction:column; align-items:center; gap:20px;">
+      <div class="grover-grid" id="groverGrid"></div>
+      <p style="font-size:.72rem; color:var(--dim); text-align:center; max-width:320px;">
+        Grover's search: checking cells one quantum step at a time. Faster, but no shortcut.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ COMPARISON ══════════════════════ -->
+<section id="compare" data-nav="Comparison">
+  <div style="text-align:center; max-width:800px;">
+    <div class="label reveal">Side by side</div>
+    <h2 class="reveal d1">Structure is the <span class="accent-amber">difference</span></h2>
+  </div>
+
+  <div class="cards reveal d2">
+    <div class="card broken">
+      <span class="tag">Quantum-vulnerable</span>
+      <h3 class="accent-mag">Elliptic Curve Crypto</h3>
+      <ul>
+        <li>Based on algebraic group structure</li>
+        <li>Relies on discrete log being hard</li>
+        <li>Shor's finds hidden period in structure</li>
+        <li><strong>Exponential</strong> speedup &rarr; broken</li>
+        <li>256-bit key &rarr; effectively <span class="accent-mag">0 bits</span> security</li>
+      </ul>
+    </div>
+    <div class="card safe">
+      <span class="tag">Quantum-resistant</span>
+      <h3 class="accent-green">Hash Functions</h3>
+      <ul>
+        <li>No algebraic structure to exploit</li>
+        <li>One-way avalanche destroys patterns</li>
+        <li>Grover's: brute-force search only</li>
+        <li><strong>Quadratic</strong> speedup &rarr; manageable</li>
+        <li>256-bit hash &rarr; still <span class="accent-green">128 bits</span> security</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bar-chart reveal d3" id="barChart">
+    <div class="bar-col">
+      <div class="bar classical" id="bar1" data-h="240">
+        <span class="bar-label accent-cyan">2<sup>128</sup> ops</span>
+      </div>
+      <div class="bar-title">Classical attack on ECC</div>
+    </div>
+    <div class="bar-col">
+      <div class="bar quantum-ecc" id="bar2" data-h="20">
+        <span class="bar-label accent-mag">poly(n)</span>
+      </div>
+      <div class="bar-title">Quantum attack on ECC</div>
+    </div>
+    <div class="bar-col">
+      <div class="bar classical" id="bar3" data-h="240">
+        <span class="bar-label accent-cyan">2<sup>256</sup> ops</span>
+      </div>
+      <div class="bar-title">Classical attack on hash</div>
+    </div>
+    <div class="bar-col">
+      <div class="bar quantum-hash" id="bar4" data-h="140">
+        <span class="bar-label accent-green">2<sup>128</sup> ops</span>
+      </div>
+      <div class="bar-title">Quantum attack on hash</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ TAKEAWAY ══════════════════════ -->
+<section id="end" data-nav="Takeaway">
+  <div class="takeaway">
+    <div class="label reveal">The takeaway</div>
+    <h2 class="reveal d1">Quantum computers exploit <em>structure</em>,<br>not raw speed</h2>
+    <div class="divider reveal d2"></div>
+    <p class="reveal d2">
+      Shor's algorithm doesn't try every key. It detects the hidden mathematical scaffolding that makes
+      public-key cryptography work &mdash; and uses it to find the secret key directly.
+    </p>
+    <p class="reveal d3" style="margin-top:1.2rem;">
+      Hash functions survive because they were built to have <em>no scaffolding</em>.
+      The best a quantum computer can do is search a little faster through an impossibly large space.
+    </p>
+    <p class="reveal d4" style="margin-top:1.2rem; color:var(--dim); font-size:.82rem;">
+      This is why post-quantum cryptography replaces ECC with lattice-based or hash-based schemes &mdash;
+      problems where quantum computers find no structure to grab onto.
+    </p>
+  </div>
+</section>
+
+<script>
+// ── Scroll reveal ──
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.15 });
+revealEls.forEach(el => revealObserver.observe(el));
+
+// ── Shor steps ──
+const shorSteps = document.querySelectorAll('.shor-step');
+const shorObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const delay = +e.target.dataset.delay;
+      setTimeout(() => e.target.classList.add('visible'), delay);
+    }
+  });
+}, { threshold: 0.3 });
+shorSteps.forEach(el => shorObserver.observe(el));
+
+// ── Nav dots ──
+const sections = document.querySelectorAll('section[data-nav]');
+const dotsContainer = document.getElementById('navDots');
+sections.forEach((sec, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'nav-dot';
+  const tip = document.createElement('span');
+  tip.className = 'tooltip';
+  tip.textContent = sec.dataset.nav;
+  dot.appendChild(tip);
+  dot.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+  dotsContainer.appendChild(dot);
+});
+const dots = document.querySelectorAll('.nav-dot');
+const navObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const idx = [...sections].indexOf(e.target);
+      dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    }
+  });
+}, { threshold: 0.4 });
+sections.forEach(s => navObserver.observe(s));
+
+// ── Bar chart animation ──
+const barObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      document.querySelectorAll('.bar').forEach(bar => {
+        bar.style.height = bar.dataset.h + 'px';
+      });
+    }
+  });
+}, { threshold: 0.3 });
+barObserver.observe(document.getElementById('barChart'));
+
+// ── Background particle canvas ──
+(function() {
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize() {
+    W = canvas.width = canvas.offsetWidth;
+    H = canvas.height = canvas.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const particles = Array.from({ length: 80 }, () => ({
+    x: Math.random() * 2000,
+    y: Math.random() * 2000,
+    vx: (Math.random() - .5) * .3,
+    vy: (Math.random() - .5) * .3,
+    r: Math.random() * 1.5 + .5
+  }));
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,240,255,.4)';
+      ctx.fill();
+    });
+    // Draw lines between close particles
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 120) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(0,240,255,${.12 * (1 - dist/120)})`;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── Elliptic Curve canvas ──
+(function() {
+  const canvas = document.getElementById('eccCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 500, H = 500;
+
+  // curve: y^2 = x^3 - x + 1
+  const a = -1, b = 1;
+  const scale = 55;
+  const cx = W/2, cy = H/2;
+
+  function toScreen(x, y) { return [cx + x * scale, cy - y * scale]; }
+
+  // Plot curve
+  function drawCurve() {
+    ctx.clearRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = 'rgba(0,240,255,.04)';
+    ctx.lineWidth = 1;
+    for (let i = -5; i <= 5; i++) {
+      const sx = cx + i * scale;
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+      const sy = cy + i * scale;
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    }
+
+    // axes
+    ctx.strokeStyle = 'rgba(200,214,229,.12)';
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+
+    // curve
+    ctx.strokeStyle = 'rgba(0,240,255,.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let px = 0; px < W; px++) {
+      const x = (px - cx) / scale;
+      const rhs = x*x*x + a*x + b;
+      if (rhs < 0) { started = false; continue; }
+      const y = Math.sqrt(rhs);
+      if (!started) { ctx.moveTo(px, cy - y * scale); started = true; }
+      else ctx.lineTo(px, cy - y * scale);
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    started = false;
+    for (let px = 0; px < W; px++) {
+      const x = (px - cx) / scale;
+      const rhs = x*x*x + a*x + b;
+      if (rhs < 0) { started = false; continue; }
+      const y = -Math.sqrt(rhs);
+      if (!started) { ctx.moveTo(px, cy - y * scale); started = true; }
+      else ctx.lineTo(px, cy - y * scale);
+    }
+    ctx.stroke();
+  }
+
+  // Animate point addition
+  let t = 0;
+  const P = { x: -1, y: 1 };
+  const Q = { x: 0, y: 1 };
+
+  function curveY(x) {
+    const rhs = x*x*x + a*x + b;
+    return rhs >= 0 ? Math.sqrt(rhs) : null;
+  }
+
+  // Compute P + Q on the curve
+  function addPoints(P, Q) {
+    const m = (Q.y - P.y) / (Q.x - P.x);
+    const rx = m*m - P.x - Q.x;
+    const ry = -(m * (rx - P.x) + P.y);
+    return { x: rx, y: ry, m };
+  }
+
+  function drawPoint(x, y, color, label) {
+    const [sx, sy] = toScreen(x, y);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 6, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    if (label) {
+      ctx.font = '700 13px JetBrains Mono';
+      ctx.fillStyle = color;
+      ctx.fillText(label, sx + 10, sy - 10);
+    }
+  }
+
+  const R = addPoints(P, Q);
+
+  function animate() {
+    drawCurve();
+
+    // animated t cycles 0..1 with pause
+    const cycle = (performance.now() / 4000) % 1;
+    const progress = Math.min(cycle * 1.6, 1);
+    const ease = progress < 0.5 ? 2*progress*progress : 1 - Math.pow(-2*progress+2,2)/2;
+
+    drawPoint(P.x, P.y, '#00f0ff', 'P');
+    drawPoint(Q.x, Q.y, '#ffb300', 'Q');
+
+    if (ease > 0) {
+      // Draw line through P and Q
+      const m = R.m;
+      const lineX1 = P.x - 2.5;
+      const lineX2 = R.x + 1;
+      const [lsx1, lsy1] = toScreen(lineX1, P.y + m*(lineX1 - P.x));
+      const [lsx2, lsy2] = toScreen(lineX2, P.y + m*(lineX2 - P.x));
+
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = `rgba(255,179,0,${ease * .5})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(lsx1, lsy1);
+      ctx.lineTo(lsx2, lsy2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Intersection point (before reflection)
+      const intY = -R.y;
+      if (ease > .3) {
+        const e2 = Math.min((ease - .3) / .4, 1);
+        drawPoint(R.x, intY, `rgba(255,45,107,${e2})`, '');
+      }
+
+      // Reflected point R
+      if (ease > .6) {
+        const e3 = Math.min((ease - .6) / .3, 1);
+        // vertical reflection line
+        const [rx1, ry1] = toScreen(R.x, intY);
+        const [rx2, ry2] = toScreen(R.x, R.y);
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle = `rgba(255,45,107,${e3 * .4})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rx1, ry1);
+        ctx.lineTo(rx1, ry1 + (ry2 - ry1) * e3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        drawPoint(R.x, R.y * e3 + intY * (1-e3), `rgba(255,45,107,${e3})`, e3 > .8 ? 'P+Q' : '');
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+// ── Hash waterfall canvas ──
+(function() {
+  const canvas = document.getElementById('hashWaterfall');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = 540, H = canvas.height = 320;
+
+  const cols = 32;
+  const rows = 12;
+  const cellW = W / cols;
+  const cellH = H / rows;
+
+  // Generate cascading "avalanche" data
+  let grid = [];
+  let frame = 0;
+
+  function pseudoRand(seed) {
+    let x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function generateFrame(f) {
+    grid = [];
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) {
+        // First row: input bits, mostly stable with a flip
+        if (r === 0) {
+          const base = pseudoRand(c * 13.7) > .5 ? 1 : 0;
+          const flipBit = Math.floor((f / 40) % cols);
+          row.push(c === flipBit ? 1 - base : base);
+        } else {
+          // Avalanche: increasingly random
+          const chaos = Math.min(r / 4, 1);
+          const parent = pseudoRand(c + r * 31 + f * .02 * r);
+          row.push(parent > (1 - chaos) * .5 ? 1 : 0);
+        }
+      }
+      grid.push(row);
+    }
+  }
+
+  function draw() {
+    frame++;
+    generateFrame(frame);
+    ctx.clearRect(0, 0, W, H);
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const val = grid[r][c];
+        const chaos = Math.min(r / 5, 1);
+        const alpha = val ? (.15 + chaos * .45) : .03;
+        const green = val ? Math.floor(100 + chaos * 155) : 20;
+        ctx.fillStyle = `rgba(57,${green},20,${alpha})`;
+        ctx.fillRect(c * cellW + 1, r * cellH + 1, cellW - 2, cellH - 2);
+
+        if (r === 0) {
+          ctx.font = '9px JetBrains Mono';
+          ctx.fillStyle = val ? 'rgba(57,255,20,.7)' : 'rgba(57,255,20,.2)';
+          ctx.textAlign = 'center';
+          ctx.fillText(val, c * cellW + cellW/2, r * cellH + cellH/2 + 3);
+        }
+      }
+    }
+
+    // Labels
+    ctx.font = '600 10px JetBrains Mono';
+    ctx.fillStyle = 'rgba(57,255,20,.4)';
+    ctx.textAlign = 'left';
+    ctx.fillText('INPUT', 4, 14);
+    ctx.fillText('OUTPUT', 4, (rows - 1) * cellH + 14);
+
+    // Arrow
+    ctx.strokeStyle = 'rgba(57,255,20,.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.moveTo(W/2, cellH + 4);
+    ctx.lineTo(W/2, H - cellH - 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    requestAnimationFrame(draw);
+  }
+
+  // Start when visible
+  const hashObs = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) { draw(); hashObs.disconnect(); }
+  }, { threshold: .2 });
+  hashObs.observe(canvas);
+})();
+
+// ── Grover grid animation ──
+(function() {
+  const grid = document.getElementById('groverGrid');
+  const total = 64;
+  const targetIdx = Math.floor(Math.random() * total);
+
+  for (let i = 0; i < total; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'grover-cell';
+    cell.dataset.idx = i;
+    cell.textContent = i.toString(16).toUpperCase().padStart(2, '0');
+    grid.appendChild(cell);
+  }
+
+  const cells = grid.querySelectorAll('.grover-cell');
+  let searchIdx = 0;
+  let running = false;
+
+  function step() {
+    if (searchIdx > 0) {
+      cells[searchIdx - 1].classList.remove('searched');
+    }
+    if (searchIdx === targetIdx) {
+      cells[searchIdx].classList.add('found');
+      setTimeout(() => {
+        cells.forEach(c => { c.classList.remove('found', 'searched'); });
+        searchIdx = 0;
+        setTimeout(step, 800);
+      }, 2000);
+      return;
+    }
+    cells[searchIdx].classList.add('searched');
+    searchIdx++;
+    setTimeout(step, 80);
+  }
+
+  const groverObs = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && !running) {
+      running = true;
+      step();
+    }
+  }, { threshold: .3 });
+  groverObs.observe(grid);
+})();
+</script>
+</body>
+</html>
